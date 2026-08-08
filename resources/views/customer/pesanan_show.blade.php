@@ -1,0 +1,282 @@
+@extends('layouts.app')
+
+@section('content')
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Detail Pesanan</h2>
+        <small class="text-muted">{{ $pesanan->kode_transaksi }}</small>
+    </div>
+    <div class="d-flex gap-2">
+        @if($pesanan->bolehKonfirmasiDiterima())
+            <form action="{{ route('customer.pesanan.konfirmasiDiterima', $pesanan->id) }}" method="POST" onsubmit="return confirm('Konfirmasi barang sudah diterima?');">
+                @csrf
+                <button type="submit" class="btn btn-success"><i class="bi bi-check-circle me-1"></i> Pesanan Diterima</button>
+            </form>
+        @elseif($pesanan->bolehDibatalkanCustomer())
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalBatalkanPesanan">
+                <i class="bi bi-x-circle me-1"></i> Batalkan Pesanan
+            </button>
+
+            <div class="modal fade" id="modalBatalkanPesanan" tabindex="-1">
+                <div class="modal-dialog">
+                    <form action="{{ route('customer.pesanan.batalkan', $pesanan->id) }}" method="POST" class="modal-content">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title">Batalkan Pesanan</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <label class="form-label">Alasan pembatalan (wajib diisi, akan dilihat admin)</label>
+                            <textarea name="alasan_pembatalan" class="form-control" rows="3" required placeholder="Contoh: salah ukuran, berubah pikiran, dll"></textarea>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-danger">Ya, Batalkan Pesanan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+        <a href="{{ route('customer.dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Kembali
+        </a>
+    </div>
+</div>
+
+@if($errors->has('batal') || $errors->has('status') || $errors->has('alasan_pembatalan'))
+    <div class="alert alert-danger">{{ $errors->first('batal') ?? $errors->first('status') ?? $errors->first('alasan_pembatalan') }}</div>
+@endif
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white fw-bold py-3">
+        <i class="bi bi-info-circle text-success me-2"></i>Informasi Pesanan
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-borderless mb-0">
+                    <tr><th width="180">Tanggal</th><td>{{ \Carbon\Carbon::parse($pesanan->tanggal_transaksi)->format('d F Y H:i') }}</td></tr>
+                    <tr><th>Platform</th><td>{{ $pesanan->platform->nama_platform ?? '-' }}</td></tr>
+                    <tr><th>Metode Pembayaran</th><td>{{ $pesanan->metode_pembayaran }}</td></tr>
+                    <tr><th>Status Pembayaran</th><td><span class="badge {{ $pesanan->badgePembayaranClass() }}">{{ $pesanan->status_pembayaran }}</span></td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <th width="180">Status Pesanan</th>
+                        <td>
+                            @php $status = strtolower($pesanan->status_pesanan); @endphp
+                            @if($status == 'selesai')
+                                <span class="badge bg-success">{{ $pesanan->status_pesanan }}</span>
+                            @elseif($status == 'pending')
+                                <span class="badge bg-warning text-dark">{{ $pesanan->status_pesanan }}</span>
+                            @else
+                                <span class="badge bg-danger">{{ $pesanan->status_pesanan }}</span>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr><th>Grand Total</th><td class="fw-bold text-success">Rp {{ number_format($pesanan->grand_total,0,',','.') }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        @if($pesanan->status_pesanan === 'Batal')
+            <div class="alert alert-danger mt-3 mb-0">
+                <strong>Pesanan ini dibatalkan {{ match($pesanan->dibatalkan_oleh) {
+                    'admin' => 'oleh admin',
+                    'sistem' => 'otomatis oleh sistem karena tidak dibayar dalam 1x24 jam',
+                    default => 'oleh kamu sendiri',
+                } }}.</strong>
+                @if($pesanan->alasan_pembatalan)
+                    <div class="mt-1">Alasan: {{ $pesanan->alasan_pembatalan }}</div>
+                @endif
+            </div>
+        @endif
+    </div>
+</div>
+
+@php
+    $isTransferBank = str_starts_with($pesanan->metode_pembayaran, 'Transfer Bank');
+    $isEwallet = str_starts_with($pesanan->metode_pembayaran, 'E-Wallet');
+@endphp
+@if($isTransferBank || $isEwallet)
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold py-3">
+            <i class="bi bi-upload text-success me-2"></i>Pembayaran
+        </div>
+        <div class="card-body">
+            @if(session('success'))
+                <div class="alert alert-success">{{ session('success') }}</div>
+            @endif
+            @if($errors->has('bukti_pembayaran'))
+                <div class="alert alert-danger">{{ $errors->first('bukti_pembayaran') }}</div>
+            @endif
+
+            @php $sp = $pesanan->status_pembayaran; @endphp
+
+            @if($sp === \App\Models\Transaksi::STATUS_LUNAS)
+                <p class="text-success mb-0"><i class="bi bi-check-circle-fill me-1"></i> Pembayaran sudah dikonfirmasi. Pesananmu akan segera diproses.</p>
+
+            @elseif($sp === \App\Models\Transaksi::STATUS_MENUNGGU_VERIFIKASI)
+                <p class="text-muted mb-2">Bukti pembayaran sudah diunggah, sedang menunggu diperiksa admin.</p>
+                @if($pesanan->bukti_pembayaran)
+                    <img src="{{ asset('storage/' . $pesanan->bukti_pembayaran) }}" alt="Bukti pembayaran" class="rounded border" style="max-width: 240px;">
+                @endif
+
+            @else
+                {{-- Menunggu Pembayaran, atau Ditolak (boleh upload ulang) --}}
+                @php $batasBayar = $pesanan->batasWaktuBayar(); @endphp
+                @if($batasBayar)
+                    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+                        <i class="bi bi-clock-history fs-5"></i>
+                        <div>
+                            Bayar sebelum <strong>{{ $batasBayar->format('d M Y H:i') }}</strong>
+                            (<span class="countdown-timer fw-bold" data-deadline="{{ $batasBayar->toIso8601String() }}">menghitung...</span>),
+                            lewat dari itu pesanan otomatis dibatalkan dan tidak berlaku lagi.
+                        </div>
+                    </div>
+                @endif
+
+                @if($sp === \App\Models\Transaksi::STATUS_DITOLAK)
+                    <div class="alert alert-danger">
+                        Bukti pembayaran sebelumnya ditolak{{ $pesanan->catatan_pembayaran ? ': ' . $pesanan->catatan_pembayaran : '.' }} Silakan unggah ulang bukti yang benar.
+                    </div>
+                @else
+                    <p class="text-muted">
+                        Segera bayar sejumlah <strong>Rp {{ number_format($pesanan->grand_total,0,',','.') }}</strong>
+                        ke {{ $isEwallet ? 'nomor e-wallet' : 'salah satu tujuan' }} di bawah, lalu unggah bukti pembayarannya.
+                    </p>
+                @endif
+
+                @if($isTransferBank)
+                    @php
+                        $bank = config('pembayaran.bank');
+                        $qrisImage = config('pembayaran.qris_image');
+                        $qrisAda = $qrisImage && file_exists(public_path($qrisImage));
+                    @endphp
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-{{ $qrisAda ? 6 : 12 }}">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="text-muted small mb-2 text-uppercase fw-semibold">Transfer Bank</p>
+                                <p class="mb-1"><strong>{{ $bank['nama_bank'] }}</strong></p>
+                                <p class="mb-1 fs-5 fw-bold text-primary" style="letter-spacing: 1px;">
+                                    {{ $bank['no_rekening'] }}
+                                    <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
+                                            onclick="navigator.clipboard.writeText('{{ $bank['no_rekening'] }}'); this.innerText='Tersalin!'; setTimeout(() => this.innerText='Salin', 1500);">
+                                        Salin
+                                    </button>
+                                </p>
+                                <p class="text-muted mb-0">a.n. {{ $bank['atas_nama'] }}</p>
+                            </div>
+                        </div>
+                        @if($qrisAda)
+                            <div class="col-md-6">
+                                <div class="border rounded-3 p-3 h-100 text-center">
+                                    <p class="text-muted small mb-2 text-uppercase fw-semibold">QRIS</p>
+                                    <img src="{{ asset($qrisImage) }}" alt="QRIS" style="max-width: 200px; width: 100%;">
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                @else
+                    @php $ewallet = config('pembayaran.ewallet'); @endphp
+                    @php
+                        // Ambil nama provider dari "E-Wallet - OVO" -> "OVO"
+                        $provider = trim(str_replace('E-Wallet -', '', $pesanan->metode_pembayaran));
+                    @endphp
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <div class="border rounded-3 p-3 h-100">
+                                <p class="text-muted small mb-2 text-uppercase fw-semibold">{{ $provider ?: 'E-Wallet' }}</p>
+                                <p class="mb-1 fs-5 fw-bold text-primary" style="letter-spacing: 1px;">
+                                    {{ $ewallet['nomor_tujuan'] }}
+                                    <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
+                                            onclick="navigator.clipboard.writeText('{{ $ewallet['nomor_tujuan'] }}'); this.innerText='Tersalin!'; setTimeout(() => this.innerText='Salin', 1500);">
+                                        Salin
+                                    </button>
+                                </p>
+                                <p class="text-muted mb-0">a.n. {{ $ewallet['atas_nama'] }}</p>
+                                <p class="text-muted small mb-0 mt-2">Kirim ke nomor di atas lewat aplikasi {{ $provider ?: 'e-wallet' }} kamu, lalu screenshot bukti transaksinya.</p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <form action="{{ route('customer.pesanan.uploadBukti', $pesanan->id) }}" method="POST" enctype="multipart/form-data" class="d-flex gap-2 align-items-start flex-wrap">
+                    @csrf
+                    <input type="file" name="bukti_pembayaran" accept="image/*" class="form-control" style="max-width: 320px;" required>
+                    <button type="submit" class="btn btn-success">Unggah Bukti Pembayaran</button>
+                </form>
+            @endif
+        </div>
+    </div>
+@endif
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-bold py-3">
+        <i class="bi bi-bag-check text-success me-2"></i>Produk yang Dipesan
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Produk</th>
+                        <th>Material</th>
+                        <th>Ukuran</th>
+                        <th>Warna</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Harga Satuan</th>
+                        <th class="text-end">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($pesanan->detailTransaksis as $detail)
+                    <tr>
+                        <td>{{ $detail->produk->nama_produk ?? '-' }}</td>
+                        <td>{{ $detail->produk->material ?? '-' }}</td>
+                        <td>{{ $detail->ukuran }}</td>
+                        <td>{{ $detail->warna ?? '-' }}</td>
+                        <td class="text-center">{{ $detail->kuantitas }}</td>
+                        <td class="text-end">Rp {{ number_format($detail->harga_satuan,0,',','.') }}</td>
+                        <td class="text-end">Rp {{ number_format($detail->subtotal,0,',','.') }}</td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="5" class="text-end">Grand Total</th>
+                        <th class="text-end text-success">Rp {{ number_format($pesanan->grand_total,0,',','.') }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Countdown 1x24 jam batas waktu pembayaran. Kalau sudah lewat, tampilkan
+    // "Waktu habis" — pembatalan aslinya tetap ditentukan server (lihat
+    // Transaksi::batalkanYangKadaluarsa()), ini cuma tampilan visualnya.
+    document.querySelectorAll('.countdown-timer').forEach(function (el) {
+        const deadline = new Date(el.dataset.deadline).getTime();
+
+        function tick() {
+            const sisa = deadline - Date.now();
+            if (sisa <= 0) {
+                el.textContent = 'waktu habis';
+                el.closest('.alert')?.classList.replace('alert-warning', 'alert-danger');
+                return;
+            }
+            const jam = Math.floor(sisa / 3600000);
+            const menit = Math.floor((sisa % 3600000) / 60000);
+            const detik = Math.floor((sisa % 60000) / 1000);
+            el.textContent = `${jam}j ${menit}m ${detik}d lagi`;
+            setTimeout(tick, 1000);
+        }
+        tick();
+    });
+</script>
+@endsection

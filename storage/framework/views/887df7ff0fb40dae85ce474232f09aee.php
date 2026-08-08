@@ -1,0 +1,172 @@
+<div class="modal fade" id="<?php echo e($modalId); ?>" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="<?php echo e($formAction); ?>" method="POST">
+                <?php echo csrf_field(); ?>
+                <input type="hidden" name="produk_id" value="<?php echo e($produk->id); ?>">
+                <div class="modal-body pt-0">
+                    <div class="row g-4">
+                        
+                        <div class="col-md-5">
+                            <?php if($produk->diskon_persen > 0): ?>
+                                <span class="badge bg-danger mb-2">Hemat <?php echo e($produk->diskon_persen); ?>%</span>
+                            <?php endif; ?>
+                            <?php if($produk->gambar): ?>
+                                <img id="<?php echo e($idPrefix); ?>-img-preview"
+                                     src="<?php echo e(asset('storage/' . $produk->gambar)); ?>"
+                                     class="w-100 rounded-3"
+                                     style="aspect-ratio: 1 / 1; object-fit: cover;"
+                                     alt="<?php echo e($produk->nama_produk); ?>">
+                            <?php else: ?>
+                                <img id="<?php echo e($idPrefix); ?>-img-preview" src="" class="w-100 rounded-3 d-none" style="aspect-ratio: 1 / 1; object-fit: cover;" alt="<?php echo e($produk->nama_produk); ?>">
+                                <div id="<?php echo e($idPrefix); ?>-img-kosong" class="w-100 bg-light rounded-3 d-flex align-items-center justify-content-center text-muted" style="aspect-ratio: 1 / 1;">
+                                    No Image
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        
+                        <div class="col-md-7">
+                            <h4 class="fw-bold mb-1"><?php echo e($produk->nama_produk); ?></h4>
+                            <?php if($produk->material): ?>
+                                <p class="text-muted small mb-2">Bahan: <?php echo e($produk->material); ?></p>
+                            <?php endif; ?>
+
+                            <div class="mb-3">
+                                <?php if($produk->diskon_persen > 0): ?>
+                                    <span class="fs-4 fw-bold text-danger">Rp <?php echo e(number_format($produk->harga_promo, 0, ',', '.')); ?></span>
+                                    <span class="text-muted text-decoration-line-through ms-2">Rp <?php echo e(number_format($produk->harga_satuan, 0, ',', '.')); ?></span>
+                                <?php else: ?>
+                                    <span class="fs-4 fw-bold text-primary">Rp <?php echo e(number_format($produk->harga_satuan, 0, ',', '.')); ?></span>
+                                <?php endif; ?>
+                            </div>
+
+                            
+                            <h6 class="fw-semibold mb-2">Pilih Warna</h6>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <?php $__currentLoopData = $produk->warnaTersedia(); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $i => $warna): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php
+                                        $imgWarna = $produk->gambarUntukWarna($warna);
+                                        $imgWarnaUrl = $imgWarna ? asset('storage/' . $imgWarna) : '';
+                                    ?>
+                                    <input type="radio" class="btn-check radio-warna-<?php echo e($idPrefix); ?>" name="warna"
+                                           id="<?php echo e($idPrefix); ?>-warna-<?php echo e($i); ?>" value="<?php echo e($warna); ?>"
+                                           data-img="<?php echo e($imgWarnaUrl); ?>"
+                                           <?php echo e($i === 0 ? 'checked' : ''); ?> required>
+                                    <label class="btn btn-outline-dark rounded-pill px-3" for="<?php echo e($idPrefix); ?>-warna-<?php echo e($i); ?>">
+                                        <?php echo e($warna); ?>
+
+                                    </label>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </div>
+
+                            
+                            <h6 class="fw-semibold mb-2">Pilih Ukuran</h6>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <?php $__currentLoopData = \App\Models\Produk::UKURAN_OPTIONS; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $i => $ukuran): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <input type="radio" class="btn-check radio-ukuran-<?php echo e($idPrefix); ?>" name="ukuran"
+                                           id="<?php echo e($idPrefix); ?>-ukuran-<?php echo e($i); ?>" value="<?php echo e($ukuran); ?>"
+                                           <?php echo e($ukuran === 'M' ? 'checked' : ''); ?> required>
+                                    <label class="btn btn-outline-dark rounded-pill px-3" for="<?php echo e($idPrefix); ?>-ukuran-<?php echo e($i); ?>">
+                                        <?php echo e($ukuran); ?>
+
+                                    </label>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </div>
+
+                            
+                            <h6 class="fw-semibold mb-2">Jumlah</h6>
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <button type="button" class="btn btn-outline-secondary" onclick="ubahJumlahModal('<?php echo e($idPrefix); ?>-qty', -1)">-</button>
+                                <input type="number" name="kuantitas" id="<?php echo e($idPrefix); ?>-qty" class="form-control text-center" style="width: 70px;" value="1" min="1" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="ubahJumlahModal('<?php echo e($idPrefix); ?>-qty', 1)">+</button>
+                                <span class="ms-2 small text-muted">Stok Varian: <strong id="<?php echo e($idPrefix); ?>-stok-text" class="text-dark">0</strong></span>
+                            </div>
+
+                            <?php if($showPembayaran): ?>
+                                <h6 class="fw-semibold mb-2">Metode Pembayaran</h6>
+                                <div class="mb-3">
+                                    <select name="metode_pembayaran" class="form-select" required onchange="toggleEwalletModal(this, '<?php echo e($idPrefix); ?>')">
+                                        <option value="Transfer Bank">Transfer Bank</option>
+                                        <option value="E-Wallet">E-Wallet</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3 ewallet-provider-field" id="<?php echo e($idPrefix); ?>-ewallet-field" style="display:none;">
+                                    <label class="form-label">Pilih E-Wallet</label>
+                                    <select name="ewallet_provider" class="form-select">
+                                        <?php $__currentLoopData = \App\Models\Pelanggan::EWALLET_OPTIONS; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $ewallet): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                            <option value="<?php echo e($ewallet); ?>" <?php echo e($ewalletFavorit === $ewallet ? 'selected' : ''); ?>><?php echo e($ewallet); ?></option>
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                                    </select>
+                                </div>
+                            <?php endif; ?>
+
+                            <div class="d-flex gap-2 mt-3">
+                                <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">Batal</button>
+                                <button type="submit" id="<?php echo e($idPrefix); ?>-submit-btn" class="btn <?php echo e($submitClass); ?> flex-fill"><?php echo e($submitLabel); ?></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Data varian produk dipassing ke JS
+    const variansData = <?php echo json_encode($produk->varians, 15, 512) ?>;
+    const prefix = "<?php echo e($idPrefix); ?>";
+
+    function updateVarianInfo() {
+        const warnaSelected = document.querySelector(`.radio-warna-${prefix}:checked`)?.value;
+        const ukuranSelected = document.querySelector(`.radio-ukuran-${prefix}:checked`)?.value;
+        const imgRadio = document.querySelector(`.radio-warna-${prefix}:checked`)?.dataset.img;
+
+        // 1. Ganti Foto Produk sesuai warna yang diklik
+        const imgEl = document.getElementById(`${prefix}-img-preview`);
+        const imgKosongEl = document.getElementById(`${prefix}-img-kosong`);
+        if (imgEl) {
+            if (imgRadio) {
+                imgEl.src = imgRadio;
+                imgEl.classList.remove('d-none');
+                if (imgKosongEl) imgKosongEl.classList.add('d-none');
+            } else {
+                imgEl.classList.add('d-none');
+                if (imgKosongEl) imgKosongEl.classList.remove('d-none');
+            }
+        }
+
+        // 2. Cari stok spesifik varian ini
+        const v = variansData.find(item => item.warna === warnaSelected && item.ukuran === ukuranSelected);
+        const stok = v ? v.stok : 0;
+
+        const stokText = document.getElementById(`${prefix}-stok-text`);
+        const submitBtn = document.getElementById(`${prefix}-submit-btn`);
+        const qtyInput = document.getElementById(`${prefix}-qty`);
+
+        stokText.textContent = stok;
+        qtyInput.max = stok;
+
+        if (stok <= 0) {
+            stokText.className = "text-danger fw-bold";
+            stokText.textContent = "Habis";
+            submitBtn.disabled = true;
+        } else {
+            stokText.className = "text-success fw-bold";
+            submitBtn.disabled = false;
+        }
+    }
+
+    document.querySelectorAll(`.radio-warna-${prefix}, .radio-ukuran-${prefix}`).forEach(el => {
+        el.addEventListener('change', updateVarianInfo);
+    });
+
+    // Jalankan sekali saat modal pertama kali dirender
+    updateVarianInfo();
+})();
+</script><?php /**PATH C:\Users\Cut Aidila Safriana\Downloads\fashion-sales-terbaru-fixed\resources\views/customer/partials/_produk_modal.blade.php ENDPATH**/ ?>

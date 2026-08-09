@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator; // <--- 1. Tambahkan import ini di atas
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\URL;
 use App\Models\Produk;
 use App\Models\ProdukVarian;
 use App\Models\Transaksi;
@@ -27,6 +28,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        if (config('app.env') === 'production') {
+        URL::forceScheme('https');
+    }
         // <--- 2. Tambahkan baris ini di dalam method boot()
         Paginator::useBootstrapFive();
 
